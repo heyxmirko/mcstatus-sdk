@@ -1,6 +1,6 @@
 {
   "name": "mcstatus-sdk",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "Unofficial, fully typed, zero-dependency TypeScript SDK for the mcstatus.io Minecraft server status API.",
   "keywords": [
     "bedrock",
