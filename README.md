@@ -2,11 +2,12 @@
 
 [![npm](https://img.shields.io/npm/v/mcstatus-sdk)](https://www.npmjs.com/package/mcstatus-sdk)
 [![CI](https://github.com/heyxmirko/mcstatus-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/heyxmirko/mcstatus-sdk/actions/workflows/ci.yml)
+[![bundle size](https://img.shields.io/bundlejs/size/mcstatus-sdk)](https://bundlejs.com/?q=mcstatus-sdk)
 
 Unofficial, fully typed TypeScript SDK for the [mcstatus.io](https://mcstatus.io/docs) Minecraft server status API.
-Zero dependencies, about 1.3 kB gzipped. Built on native `fetch`, so it runs in browsers, Node 22+, Bun, Deno and edge runtimes.
+Zero dependencies, under 1 kB minified and gzipped. Built on native `fetch`, so it runs in browsers, Node 22+, Bun, Deno and edge runtimes.
 
-The official [`node-mcstatus`](https://www.npmjs.com/package/node-mcstatus) client hasn't been updated since May 2024. It depends on a deprecated `superagent` v8 and on zod v3, and [Socket reports](https://socket.dev/npm/package/node-mcstatus) 9 high alerts in its dependencies, including a high-severity CVE. That's a lot of weight and risk for showing a player count on a website, so I made this one instead.
+The official [`node-mcstatus`](https://www.npmjs.com/package/node-mcstatus) client hasn't been updated since May 2024. It depends on a deprecated `superagent` v8 and on `zod` v3, and [Socket reports](https://socket.dev/npm/package/node-mcstatus) 9 high alerts in its dependencies, including a high-severity CVE. That's a lot of weight and risk for showing a player count on a website, so I made this one instead.
 
 ## Install
 
@@ -47,13 +48,24 @@ export function PlayersOnline() {
   const { data } = useQuery({
     queryKey: ["mcstatus", "play.example.com"],
     queryFn: ({ signal }) => mcstatus.java("play.example.com", { query: false, signal }),
-    refetchInterval: 60_000, // the API caches statuses for about a minute
+    refetchInterval: 60_000, // mcstatus.io caches statuses for about a minute
   });
 
   if (!data) return null;
   return <span>{data.online ? `${data.players.online} online` : "Offline"}</span>;
 }
 ```
+
+**Cache-aware polling (recommended)**
+
+```ts
+refetchInterval: (query) => {
+  const expiresAt = query.state.data?.expires_at;
+  return expiresAt ? Math.max(expiresAt - Date.now(), 5_000) : 60_000;
+},
+```
+
+Every response tells you when mcstatus.io's cache expires (`expires_at`). With a fixed interval, you might get a status that's already been cached for almost a minute, and then show it for another full minute. If you refetch right at `expires_at`, your status is never more than one cache period old, and you make the same number of requests. The 5s floor is a safety net against a burst of requests if `expires_at` is for whatever reason in the past or misaligned.
 
 **On the server (Next.js route handler, Node, edge)**
 
@@ -137,7 +149,7 @@ Client options are `new McStatusClient({ baseUrl?, timeout?, fetch? })`. Every m
 - **Types match the API exactly** (snake_case, `null` where the docs say so). Nothing is renamed.
 - **Two different timeouts.** The client `timeout` option is in **milliseconds** and aborts the HTTP request (default 15s, `0` disables it). The per-call `timeout` is the API's own parameter, in **seconds** (default 5, max 10). It sets how long mcstatus.io waits for your Minecraft server before reporting it offline.
 - **Addresses** are `host` or `host:port` and are URL-encoded for you.
-- **Caching:** the API caches each status for about a minute, and adding query params does not bypass it. Polling more often than that only returns the same data.
+- **Caching:** mcstatus.io caches each status for about a minute, and adding query params does not bypass it. Polling more often than that only returns the same data.
 - **Rate limit:** 5 requests per second per IP. There are no automatic retries.
 - **Self-hosting:** point `baseUrl` at your own [ping-server](https://github.com/mcstatus-io/ping-server) to skip the shared cache and rate limit.
 
